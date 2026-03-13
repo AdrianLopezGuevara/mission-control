@@ -28,6 +28,10 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--color-border-hover); }
 
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
 /* Page fade transition */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }

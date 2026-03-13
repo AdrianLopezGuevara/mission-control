@@ -1,10 +1,10 @@
 'use client';
-import { Kanban, Clapperboard, Calendar, Users, Brain, LogOut, Terminal, Monitor, LayoutDashboard, Activity, FileText, Bell, Server, Timer } from 'lucide-react';
+import { useRef, useEffect } from 'react';
+import { Kanban, Calendar, Users, Brain, LogOut, Terminal, Monitor, LayoutDashboard, Activity, FileText, Bell, Server, Timer } from 'lucide-react';
 
 const navItems = [
   { id: 'home', label: 'Home', icon: LayoutDashboard, badgeKey: null },
   { id: 'tasks', label: 'Tasks', icon: Kanban, badgeKey: 'tasks' as const },
-  { id: 'content', label: 'Content', icon: Clapperboard, badgeKey: null },
   { id: 'calendar', label: 'Calendar', icon: Calendar, badgeKey: 'calendar' as const },
   { id: 'team', label: 'Team', icon: Users, badgeKey: 'team' as const },
   { id: 'office', label: 'Office', icon: Monitor, badgeKey: null },
@@ -30,6 +30,17 @@ export default function Sidebar({ active, onNav, onLogout, sseConnected = false,
   notifCount?: number;
   onNotifClick?: () => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll active tab into view on mobile
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const activeBtn = scrollRef.current.querySelector('[data-active="true"]') as HTMLElement | null;
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [active]);
+
   return (
     <>
       {/* Desktop sidebar */}
@@ -100,49 +111,59 @@ export default function Sidebar({ active, onNav, onLogout, sseConnected = false,
         </div>
       </nav>
 
-      {/* Mobile bottom tab bar — show core nav items */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border flex items-center justify-around h-14 safe-area-inset-bottom"
-        style={{ background: 'rgba(17, 17, 19, 0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
-        {navItems.slice(0, 6).map(({ id, label, icon: Icon, badgeKey }) => {
-          const count = badgeKey && badges ? badges[badgeKey] : 0;
-          return (
-            <button
-              key={id}
-              onClick={() => onNav(id)}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 relative transition-all ${
-                active === id ? 'text-accent-hover' : 'text-text-muted'
-              }`}
-            >
-              {count > 0 && (
-                <span className="absolute top-1 right-[20%] text-[0.45rem] bg-accent text-white rounded-full px-1 min-w-[13px] text-center font-bold leading-4">
-                  {count > 99 ? '99+' : count}
-                </span>
-              )}
-              <Icon className="w-5 h-5" strokeWidth={active === id ? 2.2 : 1.6} />
-              <span className="text-[0.55rem] font-medium leading-none">{label}</span>
-            </button>
-          );
-        })}
-        {/* Bell on mobile */}
-        <button
-          onClick={onNotifClick}
-          className="flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 relative text-text-muted"
+      {/* Mobile bottom tab bar — horizontally scrollable */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border safe-area-inset-bottom"
+        style={{ background: 'rgba(17, 17, 19, 0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}
+      >
+        <div
+          ref={scrollRef}
+          className="flex items-center overflow-x-auto no-scrollbar h-14"
         >
-          {notifCount > 0 && (
-            <span className="absolute top-1 right-[18%] text-[0.45rem] bg-red-500 text-white rounded-full px-1 min-w-[13px] text-center font-bold leading-4">
-              {notifCount > 99 ? '99+' : notifCount}
-            </span>
-          )}
-          <Bell className="w-5 h-5" strokeWidth={1.6} />
-          <span className="text-[0.55rem] font-medium leading-none">Alerts</span>
-        </button>
-        <button
-          onClick={onLogout}
-          className="flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 text-text-muted"
-        >
-          <LogOut className="w-5 h-5" strokeWidth={1.6} />
-          <span className="text-[0.55rem] font-medium leading-none">Logout</span>
-        </button>
+          {navItems.map(({ id, label, icon: Icon, badgeKey }) => {
+            const isActive = active === id;
+            const count = badgeKey && badges ? badges[badgeKey] : 0;
+            return (
+              <button
+                key={id}
+                data-active={isActive}
+                onClick={() => onNav(id)}
+                className={`flex flex-col items-center justify-center gap-0.5 flex-shrink-0 w-14 py-1.5 relative transition-all ${
+                  isActive ? 'text-accent-hover' : 'text-text-muted'
+                }`}
+              >
+                {count > 0 && (
+                  <span className="absolute top-1 right-2 text-[0.45rem] bg-accent text-white rounded-full px-1 min-w-[13px] text-center font-bold leading-4">
+                    {count > 99 ? '99+' : count}
+                  </span>
+                )}
+                <Icon className="w-5 h-5" strokeWidth={isActive ? 2.2 : 1.6} />
+                <span className="text-[0.55rem] font-medium leading-none">{label}</span>
+              </button>
+            );
+          })}
+          {/* Bell */}
+          <button
+            onClick={onNotifClick}
+            className="flex flex-col items-center justify-center gap-0.5 flex-shrink-0 w-14 py-1.5 relative text-text-muted"
+          >
+            {notifCount > 0 && (
+              <span className="absolute top-1 right-2 text-[0.45rem] bg-red-500 text-white rounded-full px-1 min-w-[13px] text-center font-bold leading-4">
+                {notifCount > 99 ? '99+' : notifCount}
+              </span>
+            )}
+            <Bell className="w-5 h-5" strokeWidth={1.6} />
+            <span className="text-[0.55rem] font-medium leading-none">Alerts</span>
+          </button>
+          {/* Logout */}
+          <button
+            onClick={onLogout}
+            className="flex flex-col items-center justify-center gap-0.5 flex-shrink-0 w-14 py-1.5 text-text-muted"
+          >
+            <LogOut className="w-5 h-5" strokeWidth={1.6} />
+            <span className="text-[0.55rem] font-medium leading-none">Logout</span>
+          </button>
+        </div>
       </nav>
     </>
   );

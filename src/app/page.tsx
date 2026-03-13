@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
 import KanbanBoard from '@/components/KanbanBoard';
-import ContentPipeline from '@/components/ContentPipeline';
 import CalendarView from '@/components/CalendarView';
 import TeamView from '@/components/TeamView';
 import MemoryView from '@/components/MemoryView';
@@ -30,7 +29,6 @@ interface AppNotification {
 
 interface AppStats {
   tasks?: { total: number; backlog: number; inProgress: number; review: number; done: number };
-  content?: { total: number; byStage: Record<string, number> };
   calendar?: { upcoming: unknown[]; today: unknown[] };
   team?: { total: number; active: number };
   timeStats?: { totalToday: number; avgPerTask: number; noEstimate: number };
@@ -43,8 +41,6 @@ export default function Home() {
   const [prevView, setPrevView] = useState('home');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [tasks, setTasks] = useState<any[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [content, setContent] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [calendar, setCalendar] = useState<any[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,15 +76,14 @@ export default function Home() {
   }, []);
 
   const loadAll = useCallback(async () => {
-    const [t, c, cal, tm, mem, off] = await Promise.all([
+    const [t, cal, tm, mem, off] = await Promise.all([
       fetch('/api/tasks').then(r => r.ok ? r.json() : []),
-      fetch('/api/content').then(r => r.ok ? r.json() : []),
       fetch('/api/calendar').then(r => r.ok ? r.json() : []),
       fetch('/api/team').then(r => r.ok ? r.json() : []),
       fetch('/api/memory').then(r => r.ok ? r.json() : []),
       fetch('/api/office').then(r => r.ok ? r.json() : []),
     ]);
-    setTasks(t); setContent(c); setCalendar(cal); setTeam(tm); setMemory(mem); setOfficeAgents(off);
+    setTasks(t); setCalendar(cal); setTeam(tm); setMemory(mem); setOfficeAgents(off);
     loadStats();
     loadNotifications();
   }, [loadStats, loadNotifications]);
@@ -128,7 +123,6 @@ export default function Home() {
     es.onopen = () => setSseConnected(true);
     es.onerror = () => setSseConnected(false);
     es.addEventListener('tasks', (e) => { setTasks(JSON.parse(e.data)); loadStats(); });
-    es.addEventListener('content', (e) => { setContent(JSON.parse(e.data)); loadStats(); });
     es.addEventListener('calendar', (e) => { setCalendar(JSON.parse(e.data)); loadStats(); });
     es.addEventListener('team', (e) => { setTeam(JSON.parse(e.data)); });
     es.addEventListener('notifications', (e) => setNotifications(JSON.parse(e.data)));
@@ -152,10 +146,6 @@ export default function Home() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function updateTaskDrag(task: any) {
     await fetch('/api/tasks', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(task) });
-  }
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async function updateContentDrag(item: any) {
-    await fetch('/api/content', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item) });
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async function saveEvent(ev: any) {
@@ -231,7 +221,6 @@ export default function Home() {
           {view === 'home' && (
             <DashboardHome
               tasks={tasks}
-              content={content}
               calendar={calendar}
               team={team}
               officeAgents={officeAgents}
@@ -246,13 +235,6 @@ export default function Home() {
               onAdd={() => { setEditTask(null); setTaskModal(true); }}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               onEdit={(task: any) => { setEditTask(task); setTaskModal(true); }}
-            />
-          )}
-          {view === 'content' && (
-            <ContentPipeline
-              content={content}
-              onUpdate={updateContentDrag}
-              onAdd={() => {}}
             />
           )}
           {view === 'calendar' && (

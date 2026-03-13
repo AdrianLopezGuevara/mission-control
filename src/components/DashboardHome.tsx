@@ -1,5 +1,5 @@
 'use client';
-import { LayoutDashboard, TrendingUp, Activity, Clock, CheckSquare, CalendarDays, Users, Timer, ArrowRight } from 'lucide-react';
+import { LayoutDashboard, Activity, Clock, CheckSquare, CalendarDays, Users, Timer, ArrowRight } from 'lucide-react';
 import { timeAgo } from '@/lib/utils';
 
 interface TaskStats {
@@ -8,10 +8,6 @@ interface TaskStats {
   inProgress: number;
   review: number;
   done: number;
-}
-interface ContentStats {
-  total: number;
-  byStage: Record<string, number>;
 }
 interface CalendarStats {
   upcoming: CalEvent[];
@@ -59,7 +55,6 @@ interface OfficeAgent {
 
 interface DashboardStats {
   tasks?: TaskStats;
-  content?: ContentStats;
   calendar?: { upcoming: unknown[]; today: unknown[] };
   team?: TeamStats;
   timeStats?: TimeStats;
@@ -68,7 +63,6 @@ interface DashboardStats {
 
 interface Props {
   tasks: TaskItem[];
-  content: unknown[];
   calendar: CalEvent[];
   team: unknown[];
   officeAgents: OfficeAgent[];
@@ -123,7 +117,7 @@ function StatCard({ label, value, sub, color, icon: Icon, onClick }: {
   );
 }
 
-export default function DashboardHome({ tasks, content, calendar, team, officeAgents, onNav, stats }: Props) {
+export default function DashboardHome({ tasks, calendar, team, officeAgents, onNav, stats }: Props) {
   const taskStats = stats?.tasks;
   const timeStats = stats?.timeStats;
   const recentActivity = (stats?.recentActivity as ActivityEntry[] | undefined) || [];
@@ -150,7 +144,7 @@ export default function DashboardHome({ tasks, content, calendar, team, officeAg
       <div className="flex-1 p-4 md:p-6 flex flex-col gap-6">
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           <StatCard
             label="Tasks"
             value={taskStats?.total ?? tasks.length}
@@ -158,14 +152,6 @@ export default function DashboardHome({ tasks, content, calendar, team, officeAg
             color="text-violet-400"
             icon={CheckSquare}
             onClick={() => onNav('tasks')}
-          />
-          <StatCard
-            label="Content"
-            value={content.length}
-            sub={`${Object.keys(stats?.content?.byStage || {}).length} stages`}
-            color="text-sky-400"
-            icon={TrendingUp}
-            onClick={() => onNav('content')}
           />
           <StatCard
             label="Today's Events"
