@@ -1,5 +1,5 @@
 'use client';
-import { Kanban, Clapperboard, Calendar, Users, Brain, LogOut, Terminal, Monitor, LayoutDashboard, Activity, FileText, Bell } from 'lucide-react';
+import { Kanban, Clapperboard, Calendar, Users, Brain, LogOut, Terminal, Monitor, LayoutDashboard, Activity, FileText, Bell, Server } from 'lucide-react';
 
 const navItems = [
   { id: 'home', label: 'Home', icon: LayoutDashboard, badgeKey: null },
@@ -8,6 +8,7 @@ const navItems = [
   { id: 'calendar', label: 'Calendar', icon: Calendar, badgeKey: 'calendar' as const },
   { id: 'team', label: 'Team', icon: Users, badgeKey: 'team' as const },
   { id: 'office', label: 'Office', icon: Monitor, badgeKey: null },
+  { id: 'services', label: 'Services', icon: Server, badgeKey: null },
   { id: 'notes', label: 'Notes', icon: FileText, badgeKey: null },
   { id: 'activity', label: 'Activity', icon: Activity, badgeKey: null },
   { id: 'memory', label: 'Memory', icon: Brain, badgeKey: null },

@@ -14,6 +14,7 @@ import MemberModal from '@/components/MemberModal';
 import DashboardHome from '@/components/DashboardHome';
 import ActivityFeed from '@/components/ActivityFeed';
 import NotesView from '@/components/NotesView';
+import ServicesView from '@/components/ServicesView';
 import NotificationPanel from '@/components/NotificationPanel';
 
 interface AppNotification {
@@ -272,6 +273,7 @@ export default function Home() {
             />
           )}
           {view === 'office' && <OfficeView agents={officeAgents} />}
+          {view === 'services' && <ServicesView />}
           {view === 'notes' && <NotesView />}
           {view === 'activity' && <ActivityFeed />}
           {view === 'memory' && <MemoryView files={memory} />}
