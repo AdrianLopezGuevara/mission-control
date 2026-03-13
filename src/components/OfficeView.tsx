@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { X } from 'lucide-react';
 
 interface AgentStatus {
   id: string;
@@ -13,13 +14,13 @@ interface AgentStatus {
   isHuman?: boolean;
 }
 
-// Desk positions for up to 10 agents — 2 rows of 5
 const DESK_POSITIONS = [
   { x: 14, y: 14 }, { x: 50, y: 14 }, { x: 86, y: 14 }, { x: 122, y: 14 }, { x: 158, y: 14 },
   { x: 14, y: 56 }, { x: 50, y: 56 }, { x: 86, y: 56 }, { x: 122, y: 56 }, { x: 158, y: 56 },
 ];
 
 const DW = 26, DH = 10;
+const CW = 200, CH = 100;
 
 const COLORS = {
   FL1: '#1e1e35', FL2: '#222240', FL_LINE: '#2a2a4a',
@@ -33,7 +34,7 @@ const COLORS = {
   POT: '#8b5e3c', POT2: '#6b4520',
   RUG1: '#3a2860', RUG2: '#2a1850', RUG_BDR: '#5a4080',
   PAPER1: '#e0e8f0', PAPER2: '#d0d8e0',
-  LAMP_POST: '#c8a84a', LAMP_HEAD: '#e8c860',
+  LAMP_POST: '#c8a84a',
   CF_TABLE: '#6b4f2a', CF_MACHINE: '#445566', CF_STEAM: '#aaccdd', CF_CUP: '#cc8833',
   WB: '#e8e8d8', WB_FRAME: '#8b6b3a', WB_LINE: '#c8d8e8', WB_TXT: '#6688aa',
   DOOR: '#2a1a10',
@@ -51,26 +52,44 @@ const STATE_DOT: Record<string, string> = {
 
 export default function OfficeView({ agents }: { agents: AgentStatus[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<AgentStatus | null>(null);
+  const [selected, setSelected] = useState<AgentStatus | null>(null);
   const [tooltip, setTooltip] = useState({ x: 0, y: 0 });
   const animFrame = useRef(0);
-  const S = 3; // pixel scale
-  const CW = 200, CH = 100; // canvas game units
+  const [scale, setScale] = useState(3);
+
+  // Responsive scale based on container width
+  useEffect(() => {
+    function updateScale() {
+      if (!containerRef.current) return;
+      const w = containerRef.current.clientWidth;
+      const h = containerRef.current.clientHeight;
+      const scaleW = Math.floor((w - 32) / CW);
+      const scaleH = Math.floor((h - 80) / CH);
+      const s = Math.max(1, Math.min(scaleW, scaleH, 5));
+      setScale(s);
+    }
+    updateScale();
+    const ro = new ResizeObserver(updateScale);
+    if (containerRef.current) ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, []);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
     if (!ctx) return;
-    
+    const S = scale;
     const tick = Math.floor(Date.now() / 500);
+    const slowTick = Math.floor(Date.now() / 2000);
 
-    function px(x: number, y: number, col: string) { ctx.fillStyle = col; ctx.fillRect(x * S, y * S, S, S); }
     function rect(x: number, y: number, w: number, h: number, col: string) { ctx.fillStyle = col; ctx.fillRect(x * S, y * S, w * S, h * S); }
     function hline(x: number, y: number, w: number, col: string) { rect(x, y, w, 1, col); }
     function vline(x: number, y: number, h: number, col: string) { rect(x, y, 1, h, col); }
+    function px(x: number, y: number, col: string) { rect(x, y, 1, 1, col); }
 
-    // Clear
     ctx.fillStyle = '#0d0d1a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -138,23 +157,25 @@ export default function OfficeView({ agents }: { agents: AgentStatus[] }) {
     // Door
     rect(90, CH - 5, 20, 5, COLORS.DOOR);
     hline(90, CH - 5, 20, COLORS.DSK2);
-    px(106, CH - 3, COLORS.LAMP_POST); // knob
+    px(106, CH - 3, COLORS.LAMP_POST);
 
-    // Draw desks, chairs, agents
+    // Desks, chairs, agents
     for (let i = 0; i < agents.length && i < DESK_POSITIONS.length; i++) {
       const agent = agents[i];
       const pos = DESK_POSITIONS[i];
       const glow = STATE_GLOW[agent.state] || STATE_GLOW.idle;
 
-      // Chair
+      // Chair — subtle sway for idle agents
       const cx = pos.x + DW / 2 - 5;
       const cy = pos.y + DH + 2;
-      rect(cx, cy, 10, 7, COLORS.CHR2);
-      hline(cx, cy, 10, COLORS.CHR3);
-      hline(cx, cy + 6, 10, COLORS.CHR1);
-      rect(cx + 1, cy + 1, 8, 5, COLORS.CHR3);
-      px(cx, cy + 7, COLORS.MON_BZL);
-      px(cx + 9, cy + 7, COLORS.MON_BZL);
+      // Ambient chair sway for idle
+      const chairOffset = agent.state === 'idle' ? Math.sin((slowTick + i) * 0.5) > 0 ? 0 : 0 : 0;
+      rect(cx, cy + chairOffset, 10, 7, COLORS.CHR2);
+      hline(cx, cy + chairOffset, 10, COLORS.CHR3);
+      hline(cx, cy + chairOffset + 6, 10, COLORS.CHR1);
+      rect(cx + 1, cy + chairOffset + 1, 8, 5, COLORS.CHR3);
+      px(cx, cy + chairOffset + 7, COLORS.MON_BZL);
+      px(cx + 9, cy + chairOffset + 7, COLORS.MON_BZL);
 
       // Shadow
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -170,13 +191,24 @@ export default function OfficeView({ agents }: { agents: AgentStatus[] }) {
       // Monitor
       rect(pos.x + 6, pos.y + 1, 14, 5, COLORS.MON_BZL);
       rect(pos.x + 7, pos.y + 2, 12, 4, agent.state === 'offline' ? '#222233' : glow);
-      // Animate screen for active states
-      if (agent.state !== 'idle' && agent.state !== 'offline') {
-        const flicker = tick % 2 === 0;
-        if (flicker) {
-          ctx.fillStyle = 'rgba(255,255,255,0.15)';
-          ctx.fillRect((pos.x + 8) * S, (pos.y + 3) * S, 4 * S, S);
-          ctx.fillRect((pos.x + 14) * S, (pos.y + 4) * S, 3 * S, S);
+
+      // Screen content — flicker for active, subtle idle flicker for idle
+      if (agent.state !== 'offline') {
+        if (agent.state !== 'idle') {
+          // Active: fast screen animation
+          const flicker = tick % 2 === 0;
+          if (flicker) {
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.fillRect((pos.x + 8) * S, (pos.y + 3) * S, 4 * S, S);
+            ctx.fillRect((pos.x + 14) * S, (pos.y + 4) * S, 3 * S, S);
+          }
+        } else {
+          // Idle: very subtle screen shimmer (ambient)
+          const idleFlicker = Math.sin((Date.now() / 3000) + i * 1.3);
+          if (idleFlicker > 0.8) {
+            ctx.fillStyle = 'rgba(255,255,255,0.04)';
+            ctx.fillRect((pos.x + 8) * S, (pos.y + 2) * S, 10 * S, 3 * S);
+          }
         }
       }
       px(pos.x + 7, pos.y + 2, 'rgba(255,255,255,0.25)');
@@ -186,69 +218,107 @@ export default function OfficeView({ agents }: { agents: AgentStatus[] }) {
       hline(pos.x + 5, pos.y + 7, 13, COLORS.KBD2);
       rect(pos.x + 20, pos.y + 7, 3, 2, COLORS.KBD);
 
-      // Papers
+      // Papers — subtle shuffle for idle agents
+      const paperShift = agent.state === 'idle' && Math.floor(Date.now() / 5000 + i) % 20 === 0 ? 1 : 0;
       rect(pos.x + 1, pos.y + 2, 4, 3, COLORS.PAPER1);
-      rect(pos.x + 2, pos.y + 3, 4, 3, COLORS.PAPER2);
+      rect(pos.x + 2 + paperShift, pos.y + 3, 4, 3, COLORS.PAPER2);
 
       // Monitor ambient glow
       if (agent.state !== 'offline') {
         ctx.fillStyle = glow;
-        ctx.globalAlpha = 0.06;
+        ctx.globalAlpha = agent.state === 'idle' ? 0.04 : 0.06;
         ctx.fillRect((pos.x + 4) * S, (pos.y - 1) * S, 18 * S, 9 * S);
         ctx.globalAlpha = 1;
       }
 
-      // Draw agent character at chair (simple pixel character)
+      // Agent character
       if (agent.state !== 'offline') {
         const charX = pos.x + DW / 2 - 2;
         const charY = pos.y + DH + 3;
         drawAgent(ctx, S, charX, charY, agent, tick);
       }
 
-      // Nameplate under desk area
-      ctx.fillStyle = 'rgba(0,0,0,0.4)';
-      const nameWidth = agent.name.length * 3.5 + 6;
-      ctx.fillRect((pos.x + DW / 2 - nameWidth / 2) * S, (pos.y + DH + 11) * S, nameWidth * S, 5 * S);
-      ctx.font = `${S * 3}px "Courier New", monospace`;
-      ctx.fillStyle = '#a0a0c0';
+      // Dark bg for nameplate (better readability)
+      const nameWidth = agent.name.length * 3.5 + 10;
+      ctx.fillStyle = 'rgba(0,0,0,0.65)';
+      const npX = (pos.x + DW / 2 - nameWidth / 2) * S;
+      const npY = (pos.y + DH + 11) * S;
+      const npW = nameWidth * S;
+      const npH = 5 * S;
+      const r = S;
+      ctx.beginPath();
+      ctx.moveTo(npX + r, npY);
+      ctx.lineTo(npX + npW - r, npY);
+      ctx.quadraticCurveTo(npX + npW, npY, npX + npW, npY + r);
+      ctx.lineTo(npX + npW, npY + npH - r);
+      ctx.quadraticCurveTo(npX + npW, npY + npH, npX + npW - r, npY + npH);
+      ctx.lineTo(npX + r, npY + npH);
+      ctx.quadraticCurveTo(npX, npY + npH, npX, npY + npH - r);
+      ctx.lineTo(npX, npY + r);
+      ctx.quadraticCurveTo(npX, npY, npX + r, npY);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.font = `bold ${S * 3}px "Courier New", monospace`;
+      ctx.fillStyle = '#c8c8e8';
       ctx.textAlign = 'center';
       ctx.fillText(agent.name, (pos.x + DW / 2) * S, (pos.y + DH + 14.5) * S);
 
       // Status dot
       const dotColor = STATE_DOT[agent.state] || STATE_DOT.idle;
       ctx.fillStyle = dotColor;
-      const dotX = (pos.x + DW / 2 + nameWidth / 2 + 1) * S;
+      const dotX = (pos.x + DW / 2 + nameWidth / 2 - 1) * S;
       const dotY = (pos.y + DH + 12.5) * S;
       ctx.beginPath();
       ctx.arc(dotX, dotY, S * 1.2, 0, Math.PI * 2);
       ctx.fill();
+
+      // Highlight selected agent
+      if (selected && selected.id === agent.id) {
+        ctx.strokeStyle = '#8b5cf6';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([3, 2]);
+        ctx.strokeRect((pos.x - 1) * S, (pos.y - 1) * S, (DW + 2) * S, (DH + 20) * S);
+        ctx.setLineDash([]);
+      }
     }
 
     animFrame.current = requestAnimationFrame(draw);
-  }, [agents, S]);
+  }, [agents, scale, selected]);
 
   useEffect(() => {
     animFrame.current = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animFrame.current);
   }, [draw]);
 
-  function handleMouseMove(e: React.MouseEvent) {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) / (rect.width / CW);
-    const my = (e.clientY - rect.top) / (rect.height / CH);
-    
-    let found: AgentStatus | null = null;
+  function getAgentAtPos(mx: number, my: number): AgentStatus | null {
     for (let i = 0; i < agents.length && i < DESK_POSITIONS.length; i++) {
       const pos = DESK_POSITIONS[i];
       if (mx >= pos.x - 2 && mx <= pos.x + DW + 2 && my >= pos.y - 2 && my <= pos.y + DH + 18) {
-        found = agents[i];
-        break;
+        return agents[i];
       }
     }
-    setHovered(found);
+    return null;
+  }
+
+  function handleMouseMove(e: React.MouseEvent) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    const mx = (e.clientX - r.left) / (r.width / CW);
+    const my = (e.clientY - r.top) / (r.height / CH);
+    setHovered(getAgentAtPos(mx, my));
     setTooltip({ x: e.clientX, y: e.clientY });
+  }
+
+  function handleClick(e: React.MouseEvent) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const r = canvas.getBoundingClientRect();
+    const mx = (e.clientX - r.left) / (r.width / CW);
+    const my = (e.clientY - r.top) / (r.height / CH);
+    const agent = getAgentAtPos(mx, my);
+    setSelected(prev => prev?.id === agent?.id ? null : agent);
   }
 
   return (
@@ -266,53 +336,117 @@ export default function OfficeView({ agents }: { agents: AgentStatus[] }) {
           </div>
         </div>
       </header>
-      <div className="flex-1 flex items-center justify-center bg-[#0d0d1a] relative overflow-auto">
-        <div className="relative overflow-x-auto max-w-full" style={{ border: '2px solid #3a3a5c', boxShadow: '0 0 30px rgba(100,80,200,0.3)' }}>
-          <canvas
-            ref={canvasRef}
-            width={CW * S}
-            height={CH * S}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={() => setHovered(null)}
-            className="block max-w-full"
-            style={{ imageRendering: 'pixelated', width: CW * S, height: CH * S }}
-          />
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Canvas area */}
+        <div ref={containerRef} className="flex-1 flex items-center justify-center bg-[#0d0d1a] relative overflow-auto">
+          <div className="relative" style={{ border: '2px solid #3a3a5c', boxShadow: '0 0 30px rgba(100,80,200,0.3)' }}>
+            <canvas
+              ref={canvasRef}
+              width={CW * scale}
+              height={CH * scale}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={() => setHovered(null)}
+              onClick={handleClick}
+              className="block cursor-pointer"
+              style={{ imageRendering: 'pixelated', width: CW * scale, height: CH * scale }}
+            />
+          </div>
+
+          {/* Hover tooltip (only when not selected) */}
+          {hovered && (!selected || selected.id !== hovered.id) && (
+            <div
+              className="fixed z-50 pointer-events-none bg-surface border border-border rounded-lg px-3 py-2 shadow-xl shadow-black/50"
+              style={{ left: tooltip.x + 12, top: tooltip.y - 10 }}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: STATE_DOT[hovered.state] }} />
+                <span className="text-xs font-semibold">{hovered.name}</span>
+                {hovered.isHuman && <span className="text-[0.55rem] px-1 py-0.5 bg-blue-500/10 text-blue-400 rounded uppercase">human</span>}
+              </div>
+              <div className="text-[0.65rem] text-text-muted">{hovered.role}</div>
+              <div className="text-[0.65rem] text-text-dim mt-1 capitalize flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATE_GLOW[hovered.state] }} />
+                {hovered.state}: {hovered.label}
+              </div>
+              {hovered.model && <div className="text-[0.58rem] text-text-muted mt-0.5 font-mono">{hovered.model}</div>}
+              <div className="text-[0.55rem] text-text-muted mt-1 opacity-60">Click for details</div>
+            </div>
+          )}
         </div>
-        {/* Tooltip */}
-        {hovered && (
-          <div
-            className="fixed z-50 pointer-events-none bg-surface border border-border rounded-lg px-3 py-2 shadow-xl shadow-black/50"
-            style={{ left: tooltip.x + 12, top: tooltip.y - 10 }}
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: STATE_DOT[hovered.state] }} />
-              <span className="text-xs font-semibold">{hovered.name}</span>
-              {hovered.isHuman && <span className="text-[0.55rem] px-1 py-0.5 bg-blue-500/10 text-blue-400 rounded uppercase">human</span>}
+
+        {/* Selected agent details panel */}
+        {selected && (
+          <div className="w-[220px] flex-shrink-0 border-l border-border bg-surface p-4 flex flex-col gap-3 overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-text-dim uppercase tracking-wider">Agent Details</span>
+              <button onClick={() => setSelected(null)} className="p-0.5 text-text-muted hover:text-text transition-colors">
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <div className="text-[0.65rem] text-text-muted">{hovered.role}</div>
-            <div className="text-[0.65rem] text-text-dim mt-1 capitalize flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: STATE_GLOW[hovered.state] }} />
-              {hovered.state}: {hovered.label}
+
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-full bg-bg border border-border flex items-center justify-center text-sm font-bold flex-shrink-0">
+                {selected.avatar || selected.name.charAt(0)}
+              </div>
+              <div>
+                <div className="text-sm font-semibold">{selected.name}</div>
+                <div className="text-[0.65rem] text-text-muted">{selected.role}</div>
+              </div>
             </div>
-            {hovered.model && <div className="text-[0.58rem] text-text-muted mt-0.5 font-mono">{hovered.model}</div>}
+
+            <div className="flex items-center gap-2 bg-surface2 border border-border rounded-lg px-3 py-2">
+              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: STATE_DOT[selected.state] }} />
+              <div>
+                <div className="text-xs font-medium capitalize">{selected.state}</div>
+                {selected.label && <div className="text-[0.65rem] text-text-muted mt-0.5 line-clamp-2">{selected.label}</div>}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <div className="flex justify-between text-xs">
+                <span className="text-text-muted">Department</span>
+                <span className="text-text-dim capitalize">{selected.department}</span>
+              </div>
+              {selected.model && (
+                <div className="flex justify-between text-xs">
+                  <span className="text-text-muted">Model</span>
+                  <span className="text-text-dim font-mono">{selected.model}</span>
+                </div>
+              )}
+              {selected.isHuman && (
+                <div className="mt-1">
+                  <span className="text-[0.6rem] px-1.5 py-0.5 bg-blue-500/10 text-blue-400 rounded font-medium uppercase">human</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
+
       {/* Agent status bar */}
       <div className="flex items-center gap-1 px-3 md:px-4 py-2 border-t border-border bg-surface overflow-x-auto flex-shrink-0 flex-wrap">
         {agents.map(a => (
-          <div key={a.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface2 border border-border text-[0.65rem] flex-shrink-0">
+          <button
+            key={a.id}
+            onClick={() => setSelected(prev => prev?.id === a.id ? null : a)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[0.65rem] flex-shrink-0 transition-colors ${
+              selected?.id === a.id ? 'bg-accent-glow border-accent/40' : 'bg-surface2 border-border hover:border-border-hover'
+            }`}
+          >
             <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: STATE_DOT[a.state] }} />
             <span className="font-medium text-text-dim">{a.name}</span>
             <span className="text-text-muted capitalize">{a.state}</span>
-          </div>
+          </button>
         ))}
+        {agents.length === 0 && (
+          <span className="text-xs text-text-muted py-1">No agents online</span>
+        )}
       </div>
     </div>
   );
 }
 
-// Draw a simple pixel character sitting at desk
 function drawAgent(ctx: CanvasRenderingContext2D, S: number, x: number, y: number, agent: AgentStatus, tick: number) {
   const skinTones = ['#f4c7a3', '#d4a574', '#c49565', '#8d5524', '#e8b888'];
   const skin = skinTones[Math.abs(hashStr(agent.name)) % skinTones.length];
@@ -322,29 +456,26 @@ function drawAgent(ctx: CanvasRenderingContext2D, S: number, x: number, y: numbe
   const shirt = shirtColors[Math.abs(hashStr(agent.name + 's')) % shirtColors.length];
 
   const r = (x: number, y: number, w: number, h: number, c: string) => { ctx.fillStyle = c; ctx.fillRect(x * S, y * S, w * S, h * S); };
-  
-  // Head
+
   r(x + 1, y - 3, 3, 3, skin);
-  // Hair
   r(x + 1, y - 3, 3, 1, hair);
   ctx.fillStyle = hair;
   ctx.fillRect(x * S, (y - 3) * S, S, 2 * S);
-  
-  // Body/shirt
   r(x, y, 5, 3, shirt);
-  
-  // Arms - animate for typing states
+
   if (agent.state === 'writing' || agent.state === 'executing' || agent.state === 'working') {
-    // Arms forward (typing)
     const armShift = tick % 2;
     r(x - 1, y + 1 + armShift, 1, 1, skin);
     r(x + 5, y + 1 + (1 - armShift), 1, 1, skin);
+  } else if (agent.state === 'idle') {
+    // Subtle resting arm pose
+    r(x - 1, y + 2, 1, 1, skin);
+    r(x + 5, y + 2, 1, 1, skin);
   } else {
     r(x - 1, y + 1, 1, 2, skin);
     r(x + 5, y + 1, 1, 2, skin);
   }
-  
-  // Eyes
+
   ctx.fillStyle = '#1a1a2e';
   ctx.fillRect((x + 1.5) * S, (y - 2) * S, S * 0.8, S * 0.8);
   ctx.fillRect((x + 3) * S, (y - 2) * S, S * 0.8, S * 0.8);

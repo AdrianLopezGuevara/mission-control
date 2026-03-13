@@ -37,6 +37,114 @@ export function getTeam() {
 }
 export function saveTeam(data: unknown) { writeJSON('team.json', data); }
 
+// Notes
+export function getNotes() { return readJSON('notes.json'); }
+export function saveNotes(data: unknown) { writeJSON('notes.json', data); }
+
+// Activity
+export interface ActivityEntry {
+  id: string;
+  type: 'task' | 'content' | 'calendar' | 'team' | 'note' | 'system';
+  action: 'created' | 'updated' | 'deleted' | 'moved' | 'completed';
+  title: string;
+  description?: string;
+  agent?: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+}
+
+export function getActivity(): ActivityEntry[] { return readJSON('activity.json'); }
+export function saveActivity(data: unknown) { writeJSON('activity.json', data); }
+
+export function logActivity(entry: Omit<ActivityEntry, 'id' | 'timestamp'>) {
+  const activity = getActivity();
+  const newEntry: ActivityEntry = {
+    id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    ...entry,
+  };
+  activity.unshift(newEntry); // newest first
+  // Keep max 500 entries
+  if (activity.length > 500) activity.splice(500);
+  saveActivity(activity);
+  broadcastSSE('activity', newEntry);
+
+  // Auto-create notifications for important events
+  if (entry.type === 'task' && entry.action === 'completed') {
+    createNotification({
+      type: 'task',
+      title: 'Task completed',
+      message: entry.title,
+      actionUrl: 'tasks',
+    });
+  }
+  if (entry.type === 'note' && entry.action === 'created') {
+    createNotification({
+      type: 'system',
+      title: 'New note created',
+      message: entry.title,
+      actionUrl: 'notes',
+    });
+  }
+}
+
+// Notifications
+export interface AppNotification {
+  id: string;
+  type: 'task' | 'calendar' | 'system' | 'mention';
+  title: string;
+  message: string;
+  read: boolean;
+  actionUrl?: string;
+  createdAt: string;
+}
+
+export function getNotifications(): AppNotification[] { return readJSON('notifications.json'); }
+export function saveNotifications(data: unknown) { writeJSON('notifications.json', data); }
+
+export function createNotification(n: Omit<AppNotification, 'id' | 'read' | 'createdAt'>) {
+  const notifications = getNotifications();
+  const notif: AppNotification = {
+    id: crypto.randomUUID(),
+    read: false,
+    createdAt: new Date().toISOString(),
+    ...n,
+  };
+  notifications.unshift(notif);
+  if (notifications.length > 100) notifications.splice(100);
+  saveNotifications(notifications);
+  broadcastSSE('notifications', notifications);
+  return notif;
+}
+
+// Check for upcoming calendar events and create notifications
+export function checkCalendarNotifications() {
+  const calendar = getCalendar();
+  const now = Date.now();
+  const twoHours = 2 * 60 * 60 * 1000;
+  const notifications = getNotifications();
+
+  for (const ev of calendar) {
+    if (!ev.date) continue;
+    const evTime = new Date(ev.time ? `${ev.date}T${ev.time}` : ev.date).getTime();
+    const diff = evTime - now;
+    if (diff > 0 && diff <= twoHours) {
+      // Check if we already created a notification for this event
+      const alreadyNotified = notifications.some(
+        (n: AppNotification) => n.actionUrl === `calendar:${ev.id}`
+      );
+      if (!alreadyNotified) {
+        createNotification({
+          type: 'calendar',
+          title: 'Upcoming event',
+          message: `${ev.title} in less than 2 hours`,
+          actionUrl: `calendar:${ev.id}`,
+        });
+      }
+    }
+  }
+}
+
 // Auth
 export function getAuth() {
   ensureDir();

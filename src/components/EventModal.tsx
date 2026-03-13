@@ -15,12 +15,13 @@ interface CalEvent {
   tags?: string[];
 }
 
-export default function EventModal({ open, onClose, onSave, onDelete, event }: {
+export default function EventModal({ open, onClose, onSave, onDelete, event, prefillDate }: {
   open: boolean;
   onClose: () => void;
   onSave: (ev: CalEvent) => void;
   onDelete?: (id: string) => void;
   event?: CalEvent | null;
+  prefillDate?: string;
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -44,10 +45,10 @@ export default function EventModal({ open, onClose, onSave, onDelete, event }: {
       setRecurring(event.recurring || '');
       setTags(event.tags?.join(', ') || '');
     } else {
-      setTitle(''); setDescription(''); setDate(''); setTime(''); setEndTime('');
+      setTitle(''); setDescription(''); setDate(prefillDate || ''); setTime(''); setEndTime('');
       setType('event'); setAssignee('migi'); setRecurring(''); setTags('');
     }
-  }, [event, open]);
+  }, [event, open, prefillDate]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

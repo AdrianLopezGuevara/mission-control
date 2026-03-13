@@ -10,6 +10,8 @@ interface Task {
   priority: string;
   status: string;
   tags: string[];
+  timeEstimate?: number; // minutes
+  timeSpent?: number;    // minutes (read-only display)
 }
 
 export default function TaskModal({ open, onClose, onSave, onDelete, task }: {
@@ -25,6 +27,7 @@ export default function TaskModal({ open, onClose, onSave, onDelete, task }: {
   const [priority, setPriority] = useState('normal');
   const [status, setStatus] = useState('backlog');
   const [tags, setTags] = useState('');
+  const [estimateHours, setEstimateHours] = useState('');
 
   useEffect(() => {
     if (task) {
@@ -34,21 +37,30 @@ export default function TaskModal({ open, onClose, onSave, onDelete, task }: {
       setPriority(task.priority || 'normal');
       setStatus(task.status || 'backlog');
       setTags(task.tags?.join(', ') || '');
+      setEstimateHours(task.timeEstimate ? String(Math.round(task.timeEstimate / 60 * 10) / 10) : '');
     } else {
       setTitle(''); setDescription(''); setAssignee('migi');
-      setPriority('normal'); setStatus('backlog'); setTags('');
+      setPriority('normal'); setStatus('backlog'); setTags(''); setEstimateHours('');
     }
   }, [task, open]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const timeEstimate = estimateHours ? Math.round(parseFloat(estimateHours) * 60) : undefined;
     onSave({
       ...(task?.id ? { id: task.id } : {}),
       title, description, assignee, priority, status,
       tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+      ...(timeEstimate ? { timeEstimate } : {}),
     });
     onClose();
   }
+
+  const timeSpentDisplay = task?.timeSpent
+    ? task.timeSpent >= 60
+      ? `${Math.floor(task.timeSpent / 60)}h ${task.timeSpent % 60}m`
+      : `${task.timeSpent}m`
+    : null;
 
   return (
     <Modal open={open} onClose={onClose} title={task?.id ? 'Edit Task' : 'New Task'}>
@@ -77,6 +89,23 @@ export default function TaskModal({ open, onClose, onSave, onDelete, task }: {
               { value: 'review', label: 'Review' }, { value: 'done', label: 'Done' },
             ]} />
           </FormField>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <FormField label="Estimate" small="hours">
+            <TextInput
+              value={estimateHours}
+              onChange={setEstimateHours}
+              placeholder="e.g. 1.5"
+              type="number"
+            />
+          </FormField>
+          {timeSpentDisplay && (
+            <FormField label="Time Spent" small="tracked">
+              <div className="px-3 py-2 bg-surface2 border border-border rounded-lg text-sm text-text-dim">
+                {timeSpentDisplay}
+              </div>
+            </FormField>
+          )}
         </div>
         <FormField label="Tags" small="comma-separated">
           <TextInput value={tags} onChange={setTags} placeholder="frontend, rodin" />

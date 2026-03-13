@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Clock } from 'lucide-react';
+import { timeAgo } from '@/lib/utils';
 
 interface Task {
   id: string;
@@ -10,6 +11,16 @@ interface Task {
   assignee?: string;
   priority?: string;
   tags?: string[];
+  createdAt?: string;
+  timeSpent?: number;   // minutes
+  timeEstimate?: number; // minutes
+}
+
+function formatTaskTime(min: number): string {
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h${m}m` : `${h}h`;
 }
 
 interface Column {
@@ -32,6 +43,13 @@ const PRIORITY_COLORS: Record<string, string> = {
   low: 'bg-zinc-700/10 text-zinc-500 border-zinc-700/20',
 };
 
+const PRIORITY_BORDER: Record<string, string> = {
+  urgent: 'border-l-red-500',
+  high: 'border-l-orange-400',
+  normal: '',
+  low: 'border-l-zinc-700',
+};
+
 export default function KanbanBoard({ tasks, onUpdate, onAdd, onEdit }: {
   tasks: Task[];
   onUpdate: (task: Task) => void;
@@ -42,6 +60,8 @@ export default function KanbanBoard({ tasks, onUpdate, onAdd, onEdit }: {
   const [dragging, setDragging] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<string | null>(null);
   const dragRef = useRef<string | null>(null);
+  const [activeCol, setActiveCol] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const filtered = filter === 'all' ? tasks : tasks.filter(t => t.assignee === filter);
 
@@ -60,6 +80,13 @@ export default function KanbanBoard({ tasks, onUpdate, onAdd, onEdit }: {
     setDragging(null);
     setDragOver(null);
     dragRef.current = null;
+  }
+
+  function handleScroll() {
+    if (!scrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+    const colWidth = scrollWidth / TASK_COLUMNS.length;
+    setActiveCol(Math.round(scrollLeft / colWidth));
   }
 
   return (
@@ -85,62 +112,122 @@ export default function KanbanBoard({ tasks, onUpdate, onAdd, onEdit }: {
           </button>
         </div>
       </header>
+
       {/* Snap-scroll on mobile, flex on desktop */}
-      <div className="flex gap-4 p-3 md:p-5 flex-1 overflow-x-auto snap-x snap-mandatory md:snap-none">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="flex gap-4 p-3 md:p-5 flex-1 overflow-x-auto snap-x snap-mandatory md:snap-none"
+      >
         {TASK_COLUMNS.map(col => {
           const colTasks = filtered.filter(t => t.status === col.id);
+          const isOver = dragOver === col.id;
           return (
             <div
               key={col.id}
-              className={`flex-shrink-0 w-[80vw] md:flex-1 md:w-auto md:min-w-[220px] snap-start bg-surface rounded-xl border transition-colors flex flex-col ${
-                dragOver === col.id ? 'border-accent/50' : 'border-border'
+              className={`flex-shrink-0 w-[80vw] md:flex-1 md:w-auto md:min-w-[220px] snap-start bg-surface rounded-xl border transition-all flex flex-col ${
+                isOver ? 'border-accent/50 shadow-lg shadow-accent/5' : 'border-border md:hover:shadow-md md:hover:shadow-black/20 md:hover:-translate-y-0.5'
               }`}
               onDragOver={e => { e.preventDefault(); setDragOver(col.id); }}
               onDragLeave={() => setDragOver(null)}
               onDrop={() => handleDrop(col.id)}
             >
+              {/* Column header */}
               <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">
                 <div className={`w-2 h-2 rounded-full ${col.color}`} />
                 <h2 className="text-xs font-semibold text-text-dim uppercase tracking-wider">{col.label}</h2>
-                <span className="ml-auto text-xs text-text-muted font-mono">{colTasks.length}</span>
+                <span className={`ml-auto text-[0.6rem] px-2 py-0.5 rounded-full font-semibold ${
+                  colTasks.length > 0 ? 'bg-surface2 text-text-muted border border-border' : 'text-text-muted'
+                }`}>
+                  {colTasks.length}
+                </span>
               </div>
+
               <div className="flex-1 p-2 overflow-y-auto flex flex-col gap-1.5">
-                {colTasks.map(task => (
-                  <div
-                    key={task.id}
-                    draggable
-                    onDragStart={() => handleDragStart(task.id)}
-                    onDragEnd={() => { setDragging(null); setDragOver(null); }}
-                    onClick={() => onEdit?.(task)}
-                    className={`bg-surface2 border border-border rounded-lg p-3 cursor-grab active:cursor-grabbing transition-all hover:border-border-hover ${
-                      dragging === task.id ? 'opacity-40 scale-95' : ''
-                    }`}
-                  >
-                    <div className="text-sm font-medium mb-1.5">{task.title}</div>
-                    {task.description && (
-                      <div className="text-xs text-text-muted mb-2 line-clamp-2">{task.description}</div>
-                    )}
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {task.priority && task.priority !== 'normal' && (
-                        <span className={`text-[0.65rem] px-2 py-0.5 rounded border font-medium ${PRIORITY_COLORS[task.priority] || ''}`}>
-                          {task.priority}
-                        </span>
-                      )}
-                      {task.tags?.map(tag => (
-                        <span key={tag} className="text-[0.65rem] px-2 py-0.5 rounded bg-accent/10 text-accent-hover border border-accent/20">
-                          {tag}
-                        </span>
-                      ))}
-                      {task.assignee && (
-                        <span className="ml-auto text-[0.65rem] text-text-muted">{task.assignee}</span>
-                      )}
-                    </div>
+                {/* Ghost placeholder when dragging over */}
+                {isOver && dragging && (
+                  <div className="drag-ghost" />
+                )}
+
+                {/* Empty column state */}
+                {colTasks.length === 0 && !isOver && (
+                  <div className="flex flex-col items-center justify-center gap-2 py-6 px-3 border-2 border-dashed border-border rounded-lg m-1 opacity-60 hover:opacity-100 transition-opacity">
+                    <p className="text-[0.7rem] text-text-muted">No tasks</p>
+                    <button
+                      onClick={onAdd}
+                      className="text-[0.65rem] px-2.5 py-1 rounded-md bg-accent/10 text-accent-hover border border-accent/20 hover:bg-accent/20 transition-colors flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" /> Add
+                    </button>
                   </div>
-                ))}
+                )}
+
+                {colTasks.map(task => {
+                  const pBorder = task.priority ? PRIORITY_BORDER[task.priority] : '';
+                  const hasPriorityBorder = !!pBorder;
+                  return (
+                    <div
+                      key={task.id}
+                      draggable
+                      onDragStart={() => handleDragStart(task.id)}
+                      onDragEnd={() => { setDragging(null); setDragOver(null); }}
+                      onClick={() => onEdit?.(task)}
+                      className={`bg-surface2 border border-border rounded-lg p-3 cursor-grab active:cursor-grabbing transition-all hover:border-border-hover hover:shadow-sm ${
+                        dragging === task.id ? 'opacity-40 scale-95' : ''
+                      } ${hasPriorityBorder ? `border-l-2 ${pBorder}` : ''}`}
+                    >
+                      <div className="text-sm font-medium mb-1.5 leading-snug">{task.title}</div>
+                      {task.description && (
+                        <div className="text-xs text-text-muted mb-2 line-clamp-2">{task.description}</div>
+                      )}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {task.priority && task.priority !== 'normal' && (
+                          <span className={`text-[0.65rem] px-2 py-0.5 rounded border font-medium ${PRIORITY_COLORS[task.priority] || ''}`}>
+                            {task.priority}
+                          </span>
+                        )}
+                        {task.tags?.map(tag => (
+                          <span key={tag} className="text-[0.65rem] px-2 py-0.5 rounded bg-accent/10 text-accent-hover border border-accent/20">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
+                        {task.createdAt && (
+                          <span className="text-[0.6rem] text-text-muted flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" />
+                            {timeAgo(task.createdAt)}
+                          </span>
+                        )}
+                        {task.timeSpent && task.timeSpent > 0 ? (
+                          <span className="text-[0.6rem] px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-400 border border-violet-500/20 flex items-center gap-0.5">
+                            <Clock className="w-2 h-2" />
+                            {formatTaskTime(task.timeSpent)}
+                          </span>
+                        ) : null}
+                        {task.assignee && (
+                          <span className="ml-auto text-[0.65rem] text-text-muted">{task.assignee}</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
         })}
+      </div>
+
+      {/* Mobile column indicator dots */}
+      <div className="md:hidden flex items-center justify-center gap-1.5 py-2 border-t border-border flex-shrink-0">
+        {TASK_COLUMNS.map((col, i) => (
+          <div
+            key={col.id}
+            className={`rounded-full transition-all ${
+              activeCol === i ? 'w-4 h-1.5 bg-accent-hover' : 'w-1.5 h-1.5 bg-border'
+            }`}
+          />
+        ))}
       </div>
     </div>
   );
