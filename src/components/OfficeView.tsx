@@ -215,44 +215,38 @@ export default function OfficeView({ agents }: { agents: AgentStatus[] }) {
   useEffect(() => { agentsRef.current = agents; }, [agents]);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
-  // Initialize positions and handle state changes
+  // Initialize positions — agents always sit at their assigned desk
   useEffect(() => {
     const prev = prevAgentsRef.current;
     agents.forEach((agent, i) => {
       const glow = GLOW_MAP[agent.state] || GL_IDLE;
+      const d = DESK_POSITIONS[i % DESK_POSITIONS.length];
+      const seatX = d.x + Math.floor(DW / 2) - 3;
+      const seatY = d.y + DH + 5;
       let pos = agentPosRef.current[i];
       if (!pos) {
-        let x = FLOOR_XMIN, y = FLOOR_YMIN;
-        for (let t=0; t<15; t++) {
-          x = FLOOR_XMIN + Math.floor(Math.random()*(FLOOR_XMAX-FLOOR_XMIN));
-          y = FLOOR_YMIN + Math.floor(Math.random()*(FLOOR_YMAX-FLOOR_YMIN));
-          if (!isInDeskZone(x,y)) break;
-        }
         agentPosRef.current[i] = {
-          x, y, targetX:x, targetY:y, direction:'down',
-          walkTimer: Math.floor(Math.random()*20),
-          screenGlow:glow, glowTarget:glow, bubbleText:'', bubbleTimer:0,
+          x: seatX, y: seatY, targetX: seatX, targetY: seatY, direction: 'up',
+          walkTimer: 0,
+          screenGlow: glow, glowTarget: glow, bubbleText: '', bubbleTimer: 0,
         };
         pos = agentPosRef.current[i];
       }
+      // Always keep agent at their desk
+      pos.x = seatX; pos.y = seatY;
+      pos.targetX = seatX; pos.targetY = seatY;
+      pos.direction = 'up';
       pos.glowTarget = glow;
       const prevAgent = prev[i];
       if (prevAgent && prevAgent.state !== agent.state) {
-        if (agent.state==='done') { pos.bubbleText='Your turn!'; pos.bubbleTimer=999; }
-        else if (agent.state==='thinking') { pos.bubbleText='...'; pos.bubbleTimer=999; }
-        else if (WORKING_STATES.has(agent.state)&&agent.label) {
-          pos.bubbleText=agent.label.substring(0,12); pos.bubbleTimer=24;
-        } else { pos.bubbleText=''; pos.bubbleTimer=0; }
-        if (!WORKING_STATES.has(prevAgent.state)&&WORKING_STATES.has(agent.state)) {
-          const d=DESK_POSITIONS[i%DESK_POSITIONS.length];
-          pos.targetX=d.x+Math.floor(DW/2)-3; pos.targetY=d.y+DH+5;
-        }
-        if (WORKING_STATES.has(prevAgent.state)&&!WORKING_STATES.has(agent.state)) {
-          pos.walkTimer=25;
-        }
+        if (agent.state === 'done') { pos.bubbleText = 'Your turn!'; pos.bubbleTimer = 999; }
+        else if (agent.state === 'thinking') { pos.bubbleText = '...'; pos.bubbleTimer = 999; }
+        else if (WORKING_STATES.has(agent.state) && agent.label) {
+          pos.bubbleText = agent.label.substring(0, 12); pos.bubbleTimer = 24;
+        } else { pos.bubbleText = ''; pos.bubbleTimer = 0; }
       }
     });
-    prevAgentsRef.current=[...agents];
+    prevAgentsRef.current = [...agents];
   }, [agents]);
 
   // Responsive scale
@@ -283,29 +277,10 @@ export default function OfficeView({ agents }: { agents: AgentStatus[] }) {
       const S=Math.max(1,Math.round(canvas.width/CW));
       const frame=frameRef.current;
 
-      // Tick agents
+      // Tick agents — just update glow lerp and bubble timers (no walking)
       for (let i=0;i<agts.length&&i<positions.length;i++) {
         const agent=agts[i]; const pos=positions[i]; if (!pos) continue;
-        const isWorking=WORKING_STATES.has(agent.state);
         if (pos.screenGlow!==pos.glowTarget) pos.screenGlow=lerpColor(pos.screenGlow,pos.glowTarget,0.2);
-        if (!isWorking) {
-          pos.walkTimer++;
-          const atTarget=Math.abs(pos.x-pos.targetX)<2&&Math.abs(pos.y-pos.targetY)<2;
-          if (pos.walkTimer>20||atTarget) {
-            let nx=0,ny=0,tries=0;
-            do {
-              nx=FLOOR_XMIN+Math.floor(Math.random()*(FLOOR_XMAX-FLOOR_XMIN));
-              ny=FLOOR_YMIN+Math.floor(Math.random()*(FLOOR_YMAX-FLOOR_YMIN));
-              tries++;
-            } while (tries<10&&isInDeskZone(nx,ny));
-            pos.targetX=nx; pos.targetY=ny; pos.walkTimer=0;
-          }
-        }
-        const dx=pos.targetX-pos.x, dy=pos.targetY-pos.y;
-        if (Math.abs(dx)>1) { pos.x+=dx>0?1:-1; if(Math.abs(dx)>=Math.abs(dy)) pos.direction=dx>0?'right':'left'; }
-        if (Math.abs(dy)>1) { pos.y+=dy>0?1:-1; if(Math.abs(dy)>Math.abs(dx)) pos.direction=dy>0?'down':'up'; }
-        pos.x=Math.max(FLOOR_XMIN,Math.min(FLOOR_XMAX,pos.x));
-        pos.y=Math.max(FLOOR_YMIN,Math.min(FLOOR_YMAX,pos.y));
         if (pos.bubbleTimer>0) {
           if (agent.state!=='done'&&agent.state!=='thinking') pos.bubbleTimer--;
           if (pos.bubbleTimer===0) pos.bubbleText='';
