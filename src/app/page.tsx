@@ -15,6 +15,7 @@ import DashboardHome from '@/components/DashboardHome';
 import ActivityFeed from '@/components/ActivityFeed';
 import NotesView from '@/components/NotesView';
 import ServicesView from '@/components/ServicesView';
+import CronMonitor from '@/components/CronMonitor';
 import NotificationPanel from '@/components/NotificationPanel';
 
 interface AppNotification {
@@ -274,6 +275,7 @@ export default function Home() {
           )}
           {view === 'office' && <OfficeView agents={officeAgents} />}
           {view === 'services' && <ServicesView />}
+          {view === 'crons' && <CronMonitor />}
           {view === 'notes' && <NotesView />}
           {view === 'activity' && <ActivityFeed />}
           {view === 'memory' && <MemoryView files={memory} />}
