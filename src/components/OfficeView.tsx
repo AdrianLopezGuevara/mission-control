@@ -221,8 +221,8 @@ export default function OfficeView({ agents }: { agents: AgentStatus[] }) {
     agents.forEach((agent, i) => {
       const glow = GLOW_MAP[agent.state] || GL_IDLE;
       const d = DESK_POSITIONS[i % DESK_POSITIONS.length];
-      const seatX = d.x + Math.floor(DW / 2) - 3;
-      const seatY = d.y + DH + 5;
+      const seatX = d.x + Math.floor(DW / 2);
+      const seatY = d.y + DH + 4;
       let pos = agentPosRef.current[i];
       if (!pos) {
         agentPosRef.current[i] = {
