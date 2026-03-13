@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+.next/
+
+# Data files (contain user data)
+data/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads
+uploads/
+
+# Bun
+bun.lock
